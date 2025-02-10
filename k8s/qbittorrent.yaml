@@ -1,0 +1,93 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: qbittorrent-config-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: qbittorrent-downloads-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: qbittorrent-service
+spec:
+  selector:
+    app: qbittorrent
+  ports:
+    - name: webui
+      protocol: TCP
+      port: 8088
+      targetPort: 8088
+      # nodePort: 32088
+    - name: torrent-tcp
+      protocol: TCP
+      port: 6881
+      targetPort: 6881
+    - name: torrent-udp
+      protocol: UDP
+      port: 6881
+      targetPort: 6881
+  type: LoadBalancer
+  # type: NodePort
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qbittorrent
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: qbittorrent
+  template:
+    metadata:
+      labels:
+        app: qbittorrent
+    spec:
+      containers:
+        - name: qbittorrent
+          image: lscr.io/linuxserver/qbittorrent:latest
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: TZ
+              value: "Etc/UTC"
+            - name: WEBUI_PORT
+              value: "8088"
+            - name: TORRENTING_PORT
+              value: "6881"
+          volumeMounts:
+            - name: config-volume
+              mountPath: /config
+            - name: downloads-volume
+              mountPath: /downloads
+          ports:
+            - containerPort: 8088
+              protocol: TCP
+            - containerPort: 6881
+              protocol: TCP
+            - containerPort: 6881
+              protocol: UDP
+      volumes:
+        - name: config-volume
+          persistentVolumeClaim:
+            claimName: qbittorrent-config-pvc
+        - name: downloads-volume
+          persistentVolumeClaim:
+            claimName: qbittorrent-downloads-pvc
